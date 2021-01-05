@@ -1,0 +1,40 @@
+pipeline {
+    agent any
+    tools { 
+        maven 'Maven3.6.3'
+    }
+    environment { 
+        JAVA_HOME='/usr/lib/jvm/java-1.8.0-amazon-corretto.x86_64'
+        GITHUB_URL='git@github.com:levtienbk56/lambda-demo.git'
+		BUILD_BRANCH='master'
+        CREDENTIALS_ID='lambda-demo'
+        TARGET_DIR='lambda-demo'
+		MODULE_NAME='batch-indeed-applicant-register.jar'
+        /* 配置先設定 */
+		FUNCTION_NAME='MyFunction'
+		REGION='us-east-1'
+        BUCKET='lambda-function-bucket-us-east-1-1603683216009'
+    }
+    stages {
+		stage('Git Checkout') {
+			steps {
+				git url: GITHUB_URL, branch: BUILD_BRANCH, credentialsId: CREDENTIALS_ID
+			}
+		}
+
+		stage('Build'){
+			steps {
+				sh 'mvn clean compile assembly:single'
+				sh 'mv target/*.zip ${FUNCTION_NAME}.zip'
+			}
+		}
+		
+		stage('Push'){
+			steps {
+			    withAWS(credentials:'aws_credentials', region: 'us-east-1') {
+				    sh "aws s3 cp ${FUNCTION_NAME}.zip s3://${BUCKET}"
+			    }
+			}
+		}
+    }
+}
