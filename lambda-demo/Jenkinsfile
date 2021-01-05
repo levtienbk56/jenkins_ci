@@ -1,21 +1,21 @@
 pipeline {
-    agent any
-    tools { 
-        maven 'Maven3.6.3'
-    }
-    environment { 
-        JAVA_HOME='/usr/lib/jvm/java-1.8.0-amazon-corretto.x86_64'
-        GITHUB_URL='git@github.com:levtienbk56/lambda-demo.git'
+	agent any
+	tools { 
+		maven 'Maven3.6.3'
+	}
+	environment { 
+		JAVA_HOME='/usr/lib/jvm/java-1.8.0-amazon-corretto.x86_64'
+		GITHUB_URL='git@github.com:levtienbk56/lambda-demo.git'
 		BUILD_BRANCH='master'
-        CREDENTIALS_ID='lambda-demo'
-        TARGET_DIR='lambda-demo'
+		CREDENTIALS_ID='lambda-demo'
+		TARGET_DIR='lambda-demo'
 		MODULE_NAME='batch-indeed-applicant-register.jar'
-        /* 配置先設定 */
+		/* 配置先設定 */
 		FUNCTION_NAME='MyFunction'
 		REGION='us-east-1'
-        BUCKET='lambda-function-bucket-us-east-1-1603683216009'
-    }
-    stages {
+		BUCKET='lambda-function-bucket-us-east-1-1603683216009'
+	}
+	stages {
 		stage('Git Checkout') {
 			steps {
 				git url: GITHUB_URL, branch: BUILD_BRANCH, credentialsId: CREDENTIALS_ID
@@ -31,10 +31,32 @@ pipeline {
 		
 		stage('Push'){
 			steps {
-			    withAWS(credentials:'aws_credentials', region: 'us-east-1') {
-				    sh "aws s3 cp ${FUNCTION_NAME}.zip s3://${BUCKET}"
-			    }
+				withAWS(credentials:'aws_credentials', region: REGION) {
+					sh "aws s3 cp ${FUNCTION_NAME}.zip s3://${BUCKET}"
+				}
 			}
 		}
-    }
+
+		stage('Deploy'){
+			steps {
+				withAWS(credentials:'aws_credentials', region: 'us-east-1') {
+					sh "aws lambda update-function-code \
+							--function-name ${FUNCTION_NAME} \
+							--s3-bucket ${BUCKET} \
+							--s3-key ${FUNCTION_NAME}.zip \
+							--region ${REGION}"
+				}
+			}
+		}
+
+		stage('Publish') {
+			steps {
+				withAWS(credentials:'aws_credentials', region: 'us-east-1') {
+					sh "aws lambda publish-version \
+							--function-name ${FUNCTION_NAME} \
+							--region ${REGION}"
+				}
+			}
+		}
+	}
 }
