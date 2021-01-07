@@ -33,6 +33,7 @@ pipeline {
 		stage('Push'){
 			steps {
 				withAWS(credentials:'aws_credentials', region: REGION) {
+					//ビルドした資源をS３にアップロード
 					sh "aws s3 cp ${FUNCTION_NAME}.zip s3://${BUCKET}"
 				}
 			}
@@ -41,11 +42,11 @@ pipeline {
 		stage('Deploy'){
 			steps {
 				withAWS(credentials:'aws_credentials', region: REGION) {
+					//関数のコードを更新する
 					sh "aws lambda update-function-code \
 							--function-name ${FUNCTION_NAME} \
 							--s3-bucket ${BUCKET} \
-							--s3-key ${FUNCTION_NAME}.zip \
-							--region ${REGION}"
+							--s3-key ${FUNCTION_NAME}.zip"
 				}
 			}
 		}
@@ -53,17 +54,22 @@ pipeline {
 		stage('Publish') {
 			steps {
 				withAWS(credentials:'aws_credentials', region: REGION) {
-					OUTPUT = sh "aws lambda publish-version \
-							--function-name ${FUNCTION_NAME} \
-							--region ${REGION}"
-					def jsonObj = readJSON text: OUTPUT
-					def version = ${jsonObj.Version}
-					sh "echo ${version}"
-
-					sh "aws lambda update-alias \
+					script{
+						//新しいバージョンを発行
+						OUTPUT = sh(returnStdout: true, script: "aws lambda publish-version --function-name ${FUNCTION_NAME}").trim()
+						
+						//バージョン番号を取得する
+						echo "response ${OUTPUT}"
+						def outputJson = readJSON text: OUTPUT
+						def version = outputJson.Version
+						echo "version ${version}"
+						
+						//Productionを新しいバージョンにポイントする
+						sh "aws lambda update-alias \
 							--name ${ALIAS} \
 							--function-name ${FUNCTION_NAME}  \
-							--routing-config AdditionalVersionWeights={\\\"${version}\\\"=0.10}"
+							--function-version ${version}"
+					}
 				}
 			}
 		}
