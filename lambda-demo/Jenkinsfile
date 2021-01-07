@@ -59,16 +59,14 @@ pipeline {
 						OUTPUT = sh(returnStdout: true, script: "aws lambda publish-version --function-name ${FUNCTION_NAME}").trim()
 						
 						//バージョン番号を取得する
-						echo "response ${OUTPUT}"
 						def outputJson = readJSON text: OUTPUT
-						def version = outputJson.Version
-						echo "version ${version}"
+						echo "published version ${outputJson.Version}"
 						
 						//Productionを新しいバージョンにポイントする
 						sh "aws lambda update-alias \
 							--name ${ALIAS} \
 							--function-name ${FUNCTION_NAME}  \
-							--function-version ${version}"
+							--function-version ${outputJson.Version}"
 					}
 				}
 			}
